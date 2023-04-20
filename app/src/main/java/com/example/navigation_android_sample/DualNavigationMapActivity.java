@@ -121,6 +121,7 @@ public class DualNavigationMapActivity extends AppCompatActivity implements OnNa
     private LocationChangeListeningActivityLocationCallback callback =
             new LocationChangeListeningActivityLocationCallback(new LocationChangeListeningActivity());
     private int BEGIN_ROUTE_MILESTONE = 1001;
+    private boolean reRoute = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -132,7 +133,7 @@ public class DualNavigationMapActivity extends AppCompatActivity implements OnNa
             customNotification.createNotificationChannel(this);
         }
         MapboxNavigationOptions options = MapboxNavigationOptions.builder()
-                .navigationNotification(customNotification)
+//                .navigationNotification(customNotification)
                 .build();
 
         mapboxNavigation = new MapboxNavigation(this, options);
@@ -195,16 +196,21 @@ public class DualNavigationMapActivity extends AppCompatActivity implements OnNa
         launchNavigationFab.hide();
         navigationView.setVisibility(View.VISIBLE);
         NavigationMapboxMap navigationMapboxMap = navigationView.retrieveNavigationMapboxMap();
+
         mapboxNavigation.addOffRouteListener(this);
+        MapboxNavigationOptions navigationOptions = MapboxNavigationOptions.builder()
+                .maximumDistanceOffRoute(500)
+                .minimumDistanceBeforeRerouting(500)
+                .build();
         NavigationViewOptions.Builder options = NavigationViewOptions.builder()
                 .navigationListener(this)
                 .routeListener(this)
+                .navigationOptions(navigationOptions)
                 .locationEngine(locationEngine)
                 .shouldSimulateRoute(false)
                 .progressChangeListener(progressChangeListener)
                 .milestoneEventListener(milestoneEventListener)
-                .directionsRoute(route)
-                ;
+                .directionsRoute(route);
 
         NavigationViewOptions.Builder mockOptions = NavigationViewOptions.builder()
                 .navigationListener(this)
@@ -212,27 +218,11 @@ public class DualNavigationMapActivity extends AppCompatActivity implements OnNa
                 .progressChangeListener(progressChangeListener)
                 .milestoneEventListener(milestoneEventListener)
                 .directionsRoute(route);
-
-//        MapboxNavigation mapboxNavigation = new MapboxNavigation(this);
-//        mapboxNavigation.addMilestone(new RouteMilestone.Builder()
-//                .setIdentifier(1001)
-//                .setInstruction(new BeginRouteInstruction())
-//                .setTrigger(
-//                        Trigger.all(
-//                                Trigger.lt(TriggerProperty.STEP_INDEX, 3),
-//                                Trigger.gt(TriggerProperty.STEP_DISTANCE_TOTAL_METERS, 200),
-//                                Trigger.gte(TriggerProperty.STEP_DISTANCE_TRAVELED_METERS, 75)
-//                        )
-//                ).build());
         mockLocationEngine.assign(route);
         if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             return;
         }
-//        mapboxNavigation.setLocationEngine(locationEngine);
         mapboxNavigation.startNavigation(route);
-//        NavigationLauncherOptions options1 = NavigationLauncherOptions.builder()..build();
-//        NavigationLauncher.startNavigation(this,options1);
-//        navigationView.
         navigationView.startNavigation(options.build());
     }
     private NavigationEventListener navigationEventListener= b -> {
@@ -245,11 +235,6 @@ public class DualNavigationMapActivity extends AppCompatActivity implements OnNa
     };
     @Override
     public void onLocationChanged(@NonNull Location location) {
-        // Handle new location updates here
-        double latitude = location.getLatitude();
-        double longitude = location.getLongitude();
-        System.out.println(location);
-        System.out.println("=====================================");
     }
 
     @Override
@@ -259,9 +244,8 @@ public class DualNavigationMapActivity extends AppCompatActivity implements OnNa
 
     @Override
     public void userOffRoute(Location location) {
-        System.out.println("User Off Route----------------------------------");
-        System.out.println(location);
-//        mapboxNavigation
+        reRoute = true;
+        fetchRoute(Point.fromLngLat(location.getLongitude(), location.getLatitude()),destination);
     }
 
     @Override
@@ -327,10 +311,6 @@ public class DualNavigationMapActivity extends AppCompatActivity implements OnNa
         mapRoute.addProgressChangeListener(new MapboxNavigation(this));
     }
 
-    //    private void initLocationLayer() {
-//        locationLayer = new LocationLayerPlugin(mapView, mapboxMap, locationEngine);
-//        locationLayer.setRenderMode(RenderMode.COMPASS);
-//    }
     private  void  initListenGPS(){
         final Handler handler = new Handler(Looper.getMainLooper());
         handler.postDelayed(() -> getCurrentLocation(), 5000);
@@ -362,10 +342,6 @@ public class DualNavigationMapActivity extends AppCompatActivity implements OnNa
     private void initLocationEngine() {
         mockLocationEngine = new ReplayRouteLocationEngine();
         locationEngine = LocationEngineProvider.getBestLocationEngine(this);
-//        locationEngine = LocationEngineProvider.getBestLocationEngine(this);
-        //// sets the maximum wait time in milliseconds for location updates.
-        // Locations determined at intervals but delivered in batch based on wait time.
-        // Batching is not supported by all engines.
         long DEFAULT_INTERVAL_IN_MILLISECONDS = 5000;
         long DEFAULT_MAX_WAIT_TIME = 30000;
         LocationEngineRequest request = new LocationEngineRequest.Builder(DEFAULT_INTERVAL_IN_MILLISECONDS)
@@ -374,40 +350,16 @@ public class DualNavigationMapActivity extends AppCompatActivity implements OnNa
                 .build();
 
         if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-            // TODO: Consider calling
-            //    ActivityCompat#requestPermissions
-            // here to request the missing permissions, and then overriding
-            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-            //                                          int[] grantResults)
-            // to handle the case where the user grants the permission. See the documentation
-            // for ActivityCompat#requestPermissions for more details.
             locationEngine.getLastLocation(callback);
-            System.out.println("Loggg--f-f-f-f-f-f-f-f-f-f-f-f-f-f-f-f--f");
             mockLocationEngine.assignLastLocation(origin);
-//            locationEngine.getLastLocation(callback);
             locationEngine.requestLocationUpdates(request, callback, Looper.getMainLooper());
-
-//            mockLocationEngine.requestLocationUpdates(request, callback, Looper.getMainLooper());
             return;
         }
-//        if (locationEngine.getLastLocation(callback) != null) {
-//        if (locationEngine.getLastLocation(callback) != null) {
-//            Location lastLocation = locationEngine.getLastLocation();
-//            onLocationChanged(lastLocation);
-//            origin = Point.fromLngLat(lastLocation.getLongitude(), lastLocation.getLatitude());
-//        }
-        System.out.println("");
     }
 
     private void setCurrentMarkerPosition(LatLng position) {
-        if (position != null) {
-            if (currentMarker == null) {
-//                MarkerViewOptions markerViewOptions = new MarkerViewOptions()
-//                        .position(position);
-//                currentMarker = mapboxMap.addMarker(markerViewOptions);
-            } else {
-                currentMarker.setPosition(position);
-            }
+        if (position != null && currentMarker != null) {
+               currentMarker.setPosition(position);
         }
     }
 
@@ -568,7 +520,6 @@ public class DualNavigationMapActivity extends AppCompatActivity implements OnNa
                 initListenGPS();
                 enableLocationComponent(style);
                 initMapRoute();
-                fetchRoute(origin, destination);
             }
         });
         this.mapboxMap.addOnMapClickListener(this);
@@ -624,12 +575,31 @@ public class DualNavigationMapActivity extends AppCompatActivity implements OnNa
     @Override
     public void onResponse(Call<DirectionsResponse> call, Response<DirectionsResponse> response) {
         if (validRouteResponse(response)) {
-            updateLoadingTo(false);
-            launchNavigationFab.show();
-            route = response.body().routes().get(0);
-            mapRoute.addRoutes(response.body().routes());
-            if (isNavigationRunning) {
-                launchNavigation();
+            if (reRoute) {
+                route = response.body().routes().get(0);
+                NavigationViewOptions.Builder options = NavigationViewOptions.builder()
+                        .navigationListener(this)
+                        .routeListener(this)
+                        .locationEngine(locationEngine)
+                        .shouldSimulateRoute(false)
+                        .progressChangeListener(progressChangeListener)
+                        .milestoneEventListener(milestoneEventListener)
+                        .directionsRoute(route)
+                        ;
+//                navigationView.stopNavigation();
+                navigationView.updateCameraRouteOverview();
+
+                mapboxNavigation.startNavigation(route);
+                navigationView.startNavigation(options.build());
+//                navigationView.drawRoute(response.body().routes().get(0));
+            } else {
+                updateLoadingTo(false);
+                launchNavigationFab.show();
+                route = response.body().routes().get(0);
+                mapRoute.addRoutes(response.body().routes());
+                if (isNavigationRunning) {
+                    launchNavigation();
+                }
             }
         }
     }
