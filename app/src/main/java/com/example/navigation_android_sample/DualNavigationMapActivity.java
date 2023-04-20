@@ -49,9 +49,13 @@ import com.mapbox.mapboxsdk.maps.MapView;
 import com.mapbox.mapboxsdk.maps.MapboxMap;
 import com.mapbox.mapboxsdk.maps.OnMapReadyCallback;
 import com.mapbox.mapboxsdk.maps.Style;
+import com.mapbox.services.android.navigation.ui.v5.NavigationLauncher;
+import com.mapbox.services.android.navigation.ui.v5.NavigationLauncherOptions;
 import com.mapbox.services.android.navigation.ui.v5.NavigationView;
+import com.mapbox.services.android.navigation.ui.v5.NavigationViewModel;
 import com.mapbox.services.android.navigation.ui.v5.NavigationViewOptions;
 import com.mapbox.services.android.navigation.ui.v5.OnNavigationReadyCallback;
+import com.mapbox.services.android.navigation.ui.v5.instruction.InstructionView;
 import com.mapbox.services.android.navigation.ui.v5.listeners.NavigationListener;
 import com.mapbox.services.android.navigation.ui.v5.listeners.RouteListener;
 import com.mapbox.services.android.navigation.ui.v5.map.NavigationMapboxMap;
@@ -72,6 +76,7 @@ import com.mapbox.services.android.navigation.v5.navigation.NavigationEventListe
 import com.mapbox.services.android.navigation.v5.navigation.NavigationRoute;
 import com.mapbox.services.android.navigation.v5.navigation.NavigationTimeFormat;
 import com.mapbox.services.android.navigation.v5.navigation.notification.NavigationNotification;
+import com.mapbox.services.android.navigation.v5.offroute.OffRouteDetector;
 import com.mapbox.services.android.navigation.v5.offroute.OffRouteListener;
 import com.mapbox.services.android.navigation.v5.routeprogress.ProgressChangeListener;
 import com.mapbox.services.android.navigation.v5.routeprogress.RouteProgress;
@@ -83,11 +88,11 @@ import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
 
-public class DualNavigationMapActivity extends AppCompatActivity implements OnNavigationReadyCallback, ProgressChangeListener,
+public class DualNavigationMapActivity extends AppCompatActivity implements OnNavigationReadyCallback, ProgressChangeListener, RouteListener,
         NavigationListener, Callback<DirectionsResponse>, OnMapReadyCallback, MapboxMap.OnMapClickListener, MapboxMap.OnMapLongClickListener, OnRouteSelectionChangeListener, LocationListener, OffRouteListener {
 
     private static final int CAMERA_ANIMATION_DURATION = 1000;
-    private static final int DEFAULT_CAMERA_ZOOM = 25;
+    private static final int DEFAULT_CAMERA_ZOOM = 20;
     private ConstraintLayout dualNavigationMap;
     private NavigationView navigationView;
     private MapView mapView;
@@ -190,91 +195,44 @@ public class DualNavigationMapActivity extends AppCompatActivity implements OnNa
         launchNavigationFab.hide();
         navigationView.setVisibility(View.VISIBLE);
         NavigationMapboxMap navigationMapboxMap = navigationView.retrieveNavigationMapboxMap();
-        RouteListener routeListener = new RouteListener() {
-            @Override
-            public boolean allowRerouteFrom(Point point) {
-                System.out.println("||||||||||||||||------------------------------allowRerouteFrom");
-                return false;
-            }
-
-            @Override
-            public void onOffRoute(Point point) {
-                System.out.println("||||||||||||||||------------------------------onOffRoute");
-            }
-
-            @Override
-            public void onRerouteAlong(DirectionsRoute directionsRoute) {
-
-                System.out.println("||||||||||||||||------------------------------onRouteAlong");
-            }
-
-            @Override
-            public void onFailedReroute(String s) {
-
-                System.out.println("||||||||||||||||------------------------------onFailedReRoute");
-            }
-
-            @Override
-            public void onArrival() {
-
-                System.out.println("||||||||||||||||------------------------------onArrival");
-            }
-        };
         mapboxNavigation.addOffRouteListener(this);
         NavigationViewOptions.Builder options = NavigationViewOptions.builder()
                 .navigationListener(this)
-                .routeListener(routeListener)
+                .routeListener(this)
                 .locationEngine(locationEngine)
-
                 .shouldSimulateRoute(false)
                 .progressChangeListener(progressChangeListener)
-//                .routeListener(offRouteListener)
                 .milestoneEventListener(milestoneEventListener)
-                .directionsRoute(route);
+                .directionsRoute(route)
+                ;
 
         NavigationViewOptions.Builder mockOptions = NavigationViewOptions.builder()
                 .navigationListener(this)
-//                .routeListener(routeListener)
                 .locationEngine(mockLocationEngine)
-
-
-
                 .progressChangeListener(progressChangeListener)
-//                .routeListener(offRouteListener)
                 .milestoneEventListener(milestoneEventListener)
                 .directionsRoute(route);
 
-        MapboxNavigationOptions options2 = MapboxNavigationOptions.builder()
-//                .accessToken(MAPBOX_ACCESS_TOKEN)
-                .build();
-        MapboxNavigation mapboxNavigation = new MapboxNavigation(this);
-        mapboxNavigation.addMilestone(new RouteMilestone.Builder()
-                .setIdentifier(1001)
-                .setInstruction(new BeginRouteInstruction())
-                .setTrigger(
-                        Trigger.all(
-                                Trigger.lt(TriggerProperty.STEP_INDEX, 3),
-                                Trigger.gt(TriggerProperty.STEP_DISTANCE_TOTAL_METERS, 200),
-                                Trigger.gte(TriggerProperty.STEP_DISTANCE_TRAVELED_METERS, 75)
-                        )
-                ).build());
-//        ((ReplayRouteLocationEngine) locationEngine).assign(route);
-
-//        locationEngine.getLastLocation();
+//        MapboxNavigation mapboxNavigation = new MapboxNavigation(this);
+//        mapboxNavigation.addMilestone(new RouteMilestone.Builder()
+//                .setIdentifier(1001)
+//                .setInstruction(new BeginRouteInstruction())
+//                .setTrigger(
+//                        Trigger.all(
+//                                Trigger.lt(TriggerProperty.STEP_INDEX, 3),
+//                                Trigger.gt(TriggerProperty.STEP_DISTANCE_TOTAL_METERS, 200),
+//                                Trigger.gte(TriggerProperty.STEP_DISTANCE_TRAVELED_METERS, 75)
+//                        )
+//                ).build());
         mockLocationEngine.assign(route);
         if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            // TODO: Consider calling
-            //    ActivityCompat#requestPermissions
-            // here to request the missing permissions, and then overriding
-            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-            //                                          int[] grantResults)
-            // to handle the case where the user grants the permission. See the documentation
-            // for ActivityCompat#requestPermissions for more details.
             return;
         }
-//        locationEngine.getLastLocation(callback);
-
+//        mapboxNavigation.setLocationEngine(locationEngine);
         mapboxNavigation.startNavigation(route);
+//        NavigationLauncherOptions options1 = NavigationLauncherOptions.builder()..build();
+//        NavigationLauncher.startNavigation(this,options1);
+//        navigationView.
         navigationView.startNavigation(options.build());
     }
     private NavigationEventListener navigationEventListener= b -> {
@@ -283,11 +241,8 @@ public class DualNavigationMapActivity extends AppCompatActivity implements OnNa
     private ProgressChangeListener progressChangeListener = (location, routeProgress) -> {
         System.out.println("Progress Changing------------------------");
     };
-private  MilestoneEventListener milestoneEventListener= (routeProgress, s, milestone) -> {
-};
-private  OffRouteListener offRouteListener = location -> {
-
-};
+    private  MilestoneEventListener milestoneEventListener= (routeProgress, s, milestone) -> {
+    };
     @Override
     public void onLocationChanged(@NonNull Location location) {
         // Handle new location updates here
@@ -306,6 +261,32 @@ private  OffRouteListener offRouteListener = location -> {
     public void userOffRoute(Location location) {
         System.out.println("User Off Route----------------------------------");
         System.out.println(location);
+//        mapboxNavigation
+    }
+
+    @Override
+    public boolean allowRerouteFrom(Point point) {
+        return true;
+    }
+
+    @Override
+    public void onOffRoute(Point point) {
+        System.out.println("onOffRoute----------------------------------");
+    }
+
+    @Override
+    public void onRerouteAlong(DirectionsRoute directionsRoute) {
+
+    }
+
+    @Override
+    public void onFailedReroute(String s) {
+        System.out.println("ssss");
+    }
+
+    @Override
+    public void onArrival() {
+
     }
 
     private static class BeginRouteInstruction extends Instruction {
@@ -400,7 +381,7 @@ private  OffRouteListener offRouteListener = location -> {
             //                                          int[] grantResults)
             // to handle the case where the user grants the permission. See the documentation
             // for ActivityCompat#requestPermissions for more details.
-locationEngine.getLastLocation(callback);
+            locationEngine.getLastLocation(callback);
             System.out.println("Loggg--f-f-f-f-f-f-f-f-f-f-f-f-f-f-f-f--f");
             mockLocationEngine.assignLastLocation(origin);
 //            locationEngine.getLastLocation(callback);
@@ -627,12 +608,12 @@ locationEngine.getLastLocation(callback);
 
     @Override
     public void onNavigationFinished() {
-
+        System.out.print("onNavigationFinished");
     }
 
     @Override
     public void onNavigationRunning() {
-
+        System.out.print("onNavigationRunning");
     }
 
     @Override
